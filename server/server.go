@@ -6,6 +6,9 @@ import (
 	"io"
 	"log"
 	"net"
+
+	"github.com/IveGotNorto/jam/router"
+	"github.com/IveGotNorto/jam/uri"
 )
 
 const (
@@ -30,7 +33,8 @@ const (
 )
 
 type Server struct {
-	tls *tls.Config
+	tls    *tls.Config
+	router router.Router
 }
 
 func NewServer() (Server, error) {
@@ -49,6 +53,8 @@ func NewServer() (Server, error) {
 
 	server = Server{
 		tls: config,
+		// get root from env
+		router: router.NewRouter("/home/bwoodford/sandbox/gemini"),
 	}
 
 	return server, err
@@ -68,34 +74,51 @@ func (serv *Server) Start() {
 			log.Println(err)
 			continue
 		}
-		go handleConnection(conn)
+		go serv.handleConnection(conn)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func (serv *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
+	var resp []byte
 
 	msg, err := readRequestLine(conn)
 
-	resp := handleRequest(string(msg), err)
+	if err != nil {
+		resp = createResponse(BAD_REQUEST, "", "")
+	} else {
+		resp = serv.handleRequest(string(msg))
+	}
+
 	n, err := conn.Write(resp)
 
 	if err != nil {
 		log.Println(n, err)
-		return
 	}
 }
 
-func handleRequest(req string, err error) []byte {
-	resp := SUCCESS
-	if err != nil {
-		resp += BAD_REQUEST
-	} else {
-		// deconstruct request
-		println(req)
+func (serv *Server) handleRequest(req string) []byte {
+	var body string
+	var tmp []byte
+
+	uri, err := uri.Normalize(req)
+	if err == nil {
+		tmp, err = serv.router.Load(uri.Path)
+		println(string(tmp))
+		if err == nil {
+			body += string(tmp)
+		}
 	}
-	resp += "text/gemini; lang=en"
-	return []byte(resp + "\r\n")
+
+	if err != nil {
+		return createResponse(BAD_REQUEST, "", "")
+	} else {
+		return createResponse(SUCCESS, "text/gemini; lang=en", body)
+	}
+}
+
+func createResponse(status string, meta string, body string) []byte {
+	return []byte(status + meta + "\r\n" + body)
 }
 
 func readRequestLine(reader io.Reader) (line []byte, err error) {
