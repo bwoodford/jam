@@ -6,7 +6,7 @@ import (
 	"sync"
 )
 
-const MAX_SIZE int = 10
+var MAX_SIZE int = 10
 
 var ErrKeyNotFound error = fmt.Errorf("key not found")
 

@@ -9,6 +9,7 @@ var global Cache
 
 func Before() {
 	global = NewCache()
+	MAX_SIZE = 10
 }
 
 func TestRemovePass(t *testing.T) {
@@ -83,13 +84,18 @@ func TestRemovePass(t *testing.T) {
 		Before()
 		for _, in := range tc.input {
 			global.cMap[in] = []byte{}
+			global.queue.PushBack(in)
 		}
 		for _, re := range tc.remove {
 			global.Remove(re)
 		}
 
 		if len(global.cMap) != tc.expected {
-			t.Fatalf("%s: expected: %d got: %d", tc.desc, tc.expected, len(global.cMap))
+			t.Fatalf("%s: expected cMap: %d got: %d", tc.desc, tc.expected, len(global.cMap))
+		}
+
+		if global.queue.Len() != tc.expected {
+			t.Fatalf("%s: expected queue: %d got: %d", tc.desc, tc.expected, global.queue.Len())
 		}
 	}
 }
@@ -232,8 +238,12 @@ func TestSetPass(t *testing.T) {
 			global.Set(in, []byte{})
 		}
 		if len(global.cMap) != tc.expected {
-			t.Fatalf("%s: expected: %d got: %d", tc.desc, tc.expected, len(global.cMap))
+			t.Fatalf("%s: expected cMap: %d got: %d", tc.desc, tc.expected, len(global.cMap))
 		}
+		if global.queue.Len() != tc.expected {
+			t.Fatalf("%s: expected queue: %d got: %d", tc.desc, tc.expected, global.queue.Len())
+		}
+
 	}
 }
 
@@ -375,8 +385,18 @@ func TestSetEviction(t *testing.T) {
 		}
 
 		for _, ex := range tc.expected {
+			found := false
 			if _, ok := global.cMap[ex]; !ok {
-				t.Fatalf("%s: expected: %s got: ErrKeyNotFound", tc.desc, ex)
+				t.Fatalf("%s: expected cMap: %s got: ErrKeyNotFound", tc.desc, ex)
+			}
+
+			for q := global.queue.Front(); q != nil; q = q.Next() {
+				if q.Value.(string) == ex {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("%s: expected queue: %s got: ErrKeyNotFound", tc.desc, ex)
 			}
 		}
 	}
@@ -434,9 +454,18 @@ func TestGetPass(t *testing.T) {
 		}
 
 		for key, inVal := range tc.input {
+			found := false
 			inMap, outVal := global.Get(key)
 			if !inMap || bytes.Compare(inVal, outVal) != 0 {
 				t.Fatalf("%s: expected inMap: %v got: %v: expected val: %v got: %v", tc.desc, true, inMap, inVal, outVal)
+			}
+			for q := global.queue.Front(); q != nil; q = q.Next() {
+				if q.Value.(string) == key {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("%s: expected queue: %s got: ErrKeyNotFound", tc.desc, key)
 			}
 		}
 	}
