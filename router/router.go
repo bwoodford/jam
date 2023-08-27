@@ -3,39 +3,45 @@ package router
 import (
 	"fmt"
 	"io/fs"
-	"io/ioutil"
-	"path/filepath"
 	"strings"
 
 	"github.com/IveGotNorto/jam/helpers/cache"
+	"github.com/IveGotNorto/jam/helpers/path"
+	"github.com/IveGotNorto/jam/helpers/reader"
 )
 
+type DirEntry interface {
+	Name() string
+	IsDir() bool
+}
+
+type FileReader interface {
+	ReadFile(string) ([]byte, error)
+}
+
 type Router struct {
-	// mapped out path structure
 	paths map[string]string
 	// starting path
-	root  string
-	cache cache.Cache
+	root   string
+	cache  cache.CacheWrapper
+	reader reader.FileReader
+	fpath  path.FilePath
 }
 
 func NewRouter(root string) Router {
-	cache := cache.NewCache()
 	router := Router{
-		root:  root,
-		cache: cache,
-		paths: make(map[string]string),
+		root:   root,
+		cache:  cache.NewCache(),
+		paths:  make(map[string]string),
+		reader: &reader.ReaderWrapper{},
+		fpath:  &path.PathWrapper{},
 	}
 	router.Init()
 	return router
 }
 
 func (r *Router) Init() {
-	r.traverse()
-	fmt.Printf("%v", r.paths)
-}
-
-func (r *Router) traverse() {
-	filepath.WalkDir(r.root, r.mapper)
+	r.fpath.WalkDir(r.root, r.mapper)
 }
 
 func (r *Router) mapper(path string, info fs.DirEntry, err error) error {
@@ -72,7 +78,7 @@ func (r *Router) Load(key string) ([]byte, error) {
 		// Check if value is in the cache
 		inCache, file := r.cache.Get(key)
 		if !inCache {
-			file, err = ioutil.ReadFile(val)
+			file, err = r.reader.ReadFile(val)
 			if err != nil {
 				return nil, err
 			}

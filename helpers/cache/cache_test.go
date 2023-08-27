@@ -8,7 +8,7 @@ import (
 var global Cache
 
 func Before() {
-	global = NewCache()
+	global = *NewCache()
 	MAX_SIZE = 10
 }
 

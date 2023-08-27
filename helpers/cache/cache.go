@@ -10,19 +10,26 @@ var MAX_SIZE int = 10
 
 var ErrKeyNotFound error = fmt.Errorf("key not found")
 
+type CacheWrapper interface {
+	Get(key string) (bool, []byte)
+	Set(key string, value []byte)
+	Remove(key string) error
+	Clear()
+}
+
 type Cache struct {
 	queue *list.List
 	cMap  map[string][]byte
 	lock  *sync.Mutex
 }
 
-func NewCache() Cache {
+func NewCache() *Cache {
 	cache := Cache{
 		lock:  &sync.Mutex{},
 		cMap:  make(map[string][]byte, MAX_SIZE),
 		queue: list.New(),
 	}
-	return cache
+	return &cache
 }
 
 func (c *Cache) Remove(key string) error {
